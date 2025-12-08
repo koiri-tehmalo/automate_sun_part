@@ -70,6 +70,7 @@ def test_agency_barcode(config):
 
         main_window.child_window(auto_id="PhoneNumber",
                                  control_type="Edit").click_input()
+        time.sleep(20)
         main_window.type_keys("0987654321{ENTER}")
 
         print("[V] จบการทดสอบ: agency barcode สำเร็จ")
