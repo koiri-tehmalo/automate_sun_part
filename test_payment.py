@@ -1,42 +1,45 @@
 from pywinauto.application import Application
 from pywinauto import mouse
+import time
 import configparser
 import os 
 
-# ================= 1. Config Loader (ใช้ INI) =================
+# ================= 1. Config Loader (INI) =================
 
 def load_ini_config(file_path='element_config.ini'):
     """โหลดและจัดระเบียบข้อมูลจากไฟล์ INI ให้เป็นโครงสร้าง Dict ที่ใช้งานง่าย"""
     config = configparser.ConfigParser()
     if not os.path.exists(file_path):
+        # หากไม่พบไฟล์ ให้ยกเลิกการทำงาน
         raise FileNotFoundError(f"Config file not found: {file_path}")
         
-    # อ่านไฟล์ INI
     config.read(file_path, encoding='utf-8')
     
     # 1. โหลดส่วน APP_CONFIG และ SCROLL_CONFIG
-    app_config = dict(config.items('APP_CONFIG'))
-    scroll_config = dict(config.items('SCROLL_CONFIG'))
+    app_config = dict(config.items('APP_CONFIG')) if config.has_section('APP_CONFIG') else {}
+    scroll_config = dict(config.items('SCROLL_CONFIG')) if config.has_section('SCROLL_CONFIG') else {}
     
     # 2. จัดกลุ่ม Elements: แปลง key-value ของ Elements ให้เป็น dict ของแต่ละ Element
     elements_config = {}
-    element_map = config.items('ELEMENTS')
     
-    # Logic ในการจัดกลุ่ม key-value (เช่น A_title, A_auto_id) เข้าด้วยกัน
-    for key, value in element_map:
-        parts = key.rsplit('_', 1)
-        # ถ้ามี selector type (เช่น title, auto_id) เป็นส่วนสุดท้าย
-        if len(parts) > 1 and parts[-1] in ['title', 'auto_id', 'control_type', 'keys']:
-            element_name = "_".join(parts[:-1]) 
-            selector_type = parts[-1] 
+    if config.has_section('ELEMENTS'):
+        for key, value in config.items('ELEMENTS'):
+            parts = key.rsplit('_', 1)
             
-            if element_name not in elements_config:
-                elements_config[element_name] = {}
+            # ตรวจสอบว่าคีย์นั้นเป็น Selector ที่เรารู้จักหรือไม่
+            if len(parts) > 1 and parts[-1] in ['title', 'auto_id', 'control_type', 'keys', 'class_name']:
+                element_name = "_".join(parts[:-1]) # เช่น 'click_menu_A'
+                selector_type = parts[-1]          # เช่น 'title'
+                
+                # จัดกลุ่มลงใน Dictionary ย่อย
+                if element_name not in elements_config:
+                    elements_config[element_name] = {}
+                    
+                elements_config[element_name][selector_type] = value
             
-            elements_config[element_name][selector_type] = value
-        # ถ้าเป็นข้อมูลที่ไม่ใช่ selector (เช่น type_phone_number_keys)
-        elif key.endswith('_keys'): 
-             elements_config[key] = value
+            # จัดการกับ Test Data ที่ไม่ได้เป็น Selector Group
+            elif key.endswith('_keys'):
+                elements_config[key] = value
 
     return app_config, elements_config, scroll_config
 
@@ -51,17 +54,16 @@ except FileNotFoundError as e:
 
 # ================= 2. Helper Functions =================
 
-# สมมติฐาน: ฟังก์ชัน Log ที่ใช้ใน force_scroll_down()
+# ฟังก์ชัน Log แบบง่าย
 def log(message):
     print(message) 
 
 def force_scroll_down(window):
     """
-    ฟังก์ชันช่วยเลื่อนหน้าจอลง (Scroll) โดยใช้ Mouse Wheel
-    ดึงค่าทั้งหมดจาก SCROLL_CONFIG
+    ฟังก์ชันช่วยเลื่อนหน้าจอลง (Scroll) โดยใช้ Mouse Wheel และดึงค่าจาก SCROLL_CONFIG
     """
     try:
-        # ดึงค่าจาก Config
+        # ดึงค่าจาก Config และแปลงเป็น Integer
         scroll_dist = int(SCROLL_CONFIG.get('scroll_distance', -5))
         center_x_offset = int(SCROLL_CONFIG.get('scroll_center_x_offset', 300))
         center_y_offset = int(SCROLL_CONFIG.get('scroll_center_y_offset', 300))
@@ -100,36 +102,32 @@ def test_paymentagent_scanagentbarcode():
     # ใช้ค่าจาก APP_CONFIG
     WINDOW_TITLE = APP_CONFIG.get("window_title")
     BACKEND = APP_CONFIG.get("backend")
-    # ต้องแปลงค่าตัวเลขเป็น int
     TIMEOUT = int(APP_CONFIG.get("timeout", 10)) 
 
     try:
+        # เชื่อมต่อแอปพลิเคชัน
         app = Application(backend=BACKEND).connect(title_re=WINDOW_TITLE, timeout=TIMEOUT)
-        print("Debug: App connected.") # เพิ่มบรรทัดนี้
-
         main_window = app.top_window()
         main_window.set_focus()
-        print("Debug: Main window focused.") # เพิ่มบรรทัดนี้
         print("[/] เชื่อมต่อสำเร็จ")
 
-        # เพิ่ม print selector ตรงนี้อีกครั้ง
-        menu_A_selectors = ELEMENT_CONFIG['click_menu_A']
-        print(f"Debug: Trying to click with selectors: {menu_A_selectors}") 
-
-        main_window.child_window(**menu_A_selectors).click_input()
+        # ========= ขั้นตอนคลิกเมนู A =========
+        # ใช้ Dict unpack ** ในการส่งค่าจาก ELEMENT_CONFIG
+        main_window.child_window(**ELEMENT_CONFIG['click_menu_A']).click_input()
+        time.sleep(1)
 
         # ========= ขั้นตอนคลิกเมนู S =========
         main_window.child_window(**ELEMENT_CONFIG['click_menu_S']).click_input()
         time.sleep(1)
 
-        # ========= Scroll ลง (ใช้ฟังก์ชันและ Config) =========
+        # ========= Scroll ลง (ใช้ฟังก์ชัน force_scroll_down) =========
         force_scroll_down(main_window)
 
         # ========= คลิกช่องเบอร์โทร =========
         main_window.child_window(**ELEMENT_CONFIG['click_phone_number_field']).click_input()
         time.sleep(1)
 
-        # กรอกเบอร์โทร (ใช้ค่าจาก Config)
+        # กรอกเบอร์โทร
         phone_keys = ELEMENT_CONFIG['type_phone_number_keys']
         main_window.type_keys(phone_keys)
         time.sleep(1)
