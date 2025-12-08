@@ -114,6 +114,8 @@ def test_paymentagent_scanagentbarcode():
 
         # ========= ขั้นตอนคลิกเมนู A =========
         # ใช้ Dict unpack ** ในการส่งค่าจาก ELEMENT_CONFIG เข้าไปใน child_window()
+        menu_A_selectors = ELEMENT_CONFIG['click_menu_A']
+        print(f"[*] Selector สำหรับ click_menu_A: {menu_A_selectors}")
         main_window.child_window(**ELEMENT_CONFIG['click_menu_A']).click_input()
         time.sleep(1)
 
