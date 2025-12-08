@@ -2,6 +2,8 @@ from core.loader import ConfigLoader
 from core.locator import Locator
 from core.actions import Actions
 import time
+import sys, os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_payment():
     env = ConfigLoader("config/env.ini")
